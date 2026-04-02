@@ -6,7 +6,8 @@
   "scripts": {
     "build": "bun run build.ts",
     "dev": "bun --preload=./preload.ts ./entrypoints/cli.tsx",
-    "typecheck": "bun run tsc --noEmit"
+    "typecheck": "bun run tsc --noEmit",
+    "postinstall": "for pkg in @ant/claude-for-chrome-mcp @ant/computer-use-input @ant/computer-use-mcp @ant/computer-use-swift @anthropic-ai/mcpb @anthropic-ai/sandbox-runtime color-diff-napi; do mkdir -p \"node_modules/$pkg\" && cp \"stubs/$pkg/\"* \"node_modules/$pkg/\"; done"
   },
   "dependencies": {
     "@alcalzone/ansi-tokenize": "^0.1.0",
