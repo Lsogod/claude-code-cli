@@ -555,12 +555,12 @@ export async function runHeadless(
   headlessProfilerCheckpoint('runHeadless_entry')
 
   // Check Grove requirements for non-interactive consumer subscribers
-  process.stderr.write('[dev-trace] runHeadless: checking grove\n');
+  // process.stderr.write('[dev-trace] runHeadless: checking grove\n');
   if (await isQualifiedForGrove()) {
-    process.stderr.write('[dev-trace] runHeadless: grove qualified, checking...\n');
+    // process.stderr.write('[dev-trace] runHeadless: grove qualified, checking...\n');
     await checkGroveForNonInteractive()
   }
-  process.stderr.write('[dev-trace] runHeadless: grove done\n');
+  // process.stderr.write('[dev-trace] runHeadless: grove done\n');
   headlessProfilerCheckpoint('after_grove_check')
 
   // Initialize GrowthBook so feature flags take effect in headless mode.

@@ -446,6 +446,12 @@ export function parseUserSpecifiedModel(
   modelInput: ModelName | ModelAlias,
 ): ModelName {
   const modelInputTrimmed = modelInput.trim()
+
+  // OpenAI-compatible providers use model names as-is (no alias resolution)
+  if (getAPIProvider() === 'openai') {
+    return modelInputTrimmed
+  }
+
   const normalizedModel = modelInputTrimmed.toLowerCase()
 
   const has1mTag = has1mContext(normalizedModel)

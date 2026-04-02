@@ -331,6 +331,8 @@ export function getExtraBodyParams(betaHeaders?: string[]): JsonObject {
 }
 
 export function getPromptCachingEnabled(model: string): boolean {
+  // OpenAI-compatible endpoints don't support Anthropic prompt caching
+  if (getAPIProvider() === 'openai') return false
   // Global disable takes precedence
   if (isEnvTruthy(process.env.DISABLE_PROMPT_CACHING)) return false
 
@@ -1068,7 +1070,7 @@ async function* queryModel(
     options.querySource === 'sdk' ||
     options.querySource === 'hook_agent' ||
     options.querySource === 'verification_agent'
-  const betas = getMergedBetas(options.model, { isAgenticQuery })
+  const betas = getAPIProvider() === 'openai' ? [] : getMergedBetas(options.model, { isAgenticQuery })
 
   // Always send the advisor beta header when advisor is enabled, so
   // non-agentic queries (compact, side_question, extract_memories, etc.)

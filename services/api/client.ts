@@ -150,6 +150,15 @@ export async function getAnthropicClient({
       fetch: resolvedFetch,
     }),
   }
+  if (getAPIProvider() === 'openai') {
+    const { createOpenAICompatibleClient } = await import('./openai/index.js')
+    return createOpenAICompatibleClient({
+      baseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+      apiKey: process.env.OPENAI_API_KEY || '',
+      model: model || process.env.ANTHROPIC_MODEL || '',
+      maxRetries,
+    }) as unknown as Anthropic
+  }
   if (isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK)) {
     const { AnthropicBedrock } = await import('@anthropic-ai/bedrock-sdk')
     // Use region override for small fast model if specified
