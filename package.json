@@ -14,6 +14,8 @@
     "stack:codex": "bun ./packages/codex-anthropic-adapter/src/stack.ts",
     "version": "bun --preload ./runtime/preload.ts ./entrypoints/cli.tsx --version",
     "build": "mkdir -p dist && bun build --target bun --outdir ./dist --preload ./runtime/preload.ts ./entrypoints/cli.tsx",
+    "build:release": "mkdir -p dist && bun build --target bun --outdir ./dist --preload ./runtime/preload.ts ./entrypoints/cli.tsx && bun build --target bun --outdir ./dist ./packages/codex-anthropic-adapter/src/server.ts ./packages/codex-anthropic-adapter/src/stack.ts",
+    "package:release": "bash ./scripts/package-release.sh",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

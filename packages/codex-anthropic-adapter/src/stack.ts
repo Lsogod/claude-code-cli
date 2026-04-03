@@ -1,7 +1,20 @@
 import { getCodexAppServerUrl } from './config.js'
+import { dirname, join } from 'path'
+import { existsSync } from 'fs'
+import { fileURLToPath } from 'url'
 
 function getBunBinary(): string {
   return Bun.which('bun') || process.execPath
+}
+
+function getAdapterEntry(): string {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const built = join(here, 'server.js')
+  if (existsSync(built)) {
+    return built
+  }
+
+  return join(here, 'server.ts')
 }
 
 function spawnManagedProcess(label: string, cmd: string[]): Bun.Subprocess {
@@ -31,7 +44,7 @@ async function main(): Promise<void> {
 
   const adapter = spawnManagedProcess('codex adapter', [
     getBunBinary(),
-    './packages/codex-anthropic-adapter/src/server.ts',
+    getAdapterEntry(),
   ])
 
   const shutdown = () => {

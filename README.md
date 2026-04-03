@@ -225,6 +225,24 @@ cd /Users/mac/Documents/claude-code-source
 bun run build
 ```
 
+### 打包 release
+
+```bash
+cd /Users/mac/Documents/claude-code-source
+bun run package:release
+```
+
+默认会生成：
+
+- `release/one-claw-v1.0-macos-universal.tar.gz`
+- `release/one-claw-v1.0-macos-universal.zip`
+
+解压后直接运行：
+
+```bash
+./bin/one
+```
+
 ### 类型检查
 
 ```bash
