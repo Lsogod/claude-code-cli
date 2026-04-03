@@ -19,6 +19,7 @@ import {
   yankPop,
 } from '../utils/Cursor.js'
 import { env } from '../utils/env.js'
+import { logEnterDebug } from '../utils/enterDebug.js'
 import { isFullscreenEnvEnabled } from '../utils/fullscreen.js'
 import type { ImageDimensions } from '../utils/imageResizer.js'
 import { isModifierPressed, prewarmModifiers } from '../utils/modifiers.js'
@@ -245,6 +246,14 @@ export function useTextInput({
   ])
 
   function handleEnter(key: Key) {
+    logEnterDebug('useTextInput.handleEnter', {
+      originalValue,
+      multiline,
+      keyMeta: key.meta,
+      keyShift: key.shift,
+      cursorOffset: cursor.offset,
+    })
+
     if (
       multiline &&
       cursor.offset > 0 &&
@@ -261,8 +270,14 @@ export function useTextInput({
     // Apple Terminal doesn't support custom Shift+Enter keybindings,
     // so we use native macOS modifier detection to check if Shift is held
     if (env.terminal === 'Apple_Terminal' && isModifierPressed('shift')) {
+      logEnterDebug('useTextInput.handleEnter.appleTerminalShift', {
+        originalValue,
+      })
       return cursor.insert('\n')
     }
+    logEnterDebug('useTextInput.handleEnter.submit', {
+      originalValue,
+    })
     onSubmit?.(originalValue)
   }
 

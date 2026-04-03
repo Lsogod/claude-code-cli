@@ -5,6 +5,7 @@ import { usePasteHandler } from '../hooks/usePasteHandler.js';
 import { useDeclaredCursor } from '../ink/hooks/use-declared-cursor.js';
 import { Ansi, Box, Text, useInput } from '../ink.js';
 import type { BaseInputState, BaseTextInputProps } from '../types/textInputTypes.js';
+import { logEnterDebug } from '../utils/enterDebug.js';
 import type { TextHighlight } from '../utils/textHighlighting.js';
 import { HighlightedInput } from './PromptInput/ShimmeredInput.js';
 type BaseTextInputComponentProps = BaseTextInputProps & {
@@ -57,6 +58,15 @@ export function BaseTextInput(t0) {
   } = usePasteHandler({
     onPaste: props.onPaste,
     onInput: (input, key) => {
+      if (key.return) {
+        logEnterDebug('BaseTextInput.onInput.return', {
+          value: props.value,
+          input,
+          isPasting,
+          focus: props.focus,
+          terminalFocus,
+        });
+      }
       if (isPasting && key.return) {
         return;
       }

@@ -2,12 +2,17 @@ import { isInBundledMode } from 'src/utils/bundledMode.js';
 import { getCurrentInstallationType } from 'src/utils/doctorDiagnostic.js';
 import { isEnvTruthy } from 'src/utils/envUtils.js';
 import { useStartupNotification } from './useStartupNotification.js';
-const NPM_DEPRECATION_MESSAGE = 'Claude Code has switched from npm to native installer. Run `claude install` or see https://docs.anthropic.com/en/docs/claude-code/getting-started for more options.';
+const NPM_DEPRECATION_MESSAGE =
+  'One Claw has switched from npm to native installer. Run `one install` for native installation options.';
 export function useNpmDeprecationNotification() {
   useStartupNotification(_temp);
 }
 async function _temp() {
-  if (isInBundledMode() || isEnvTruthy(process.env.DISABLE_INSTALLATION_CHECKS)) {
+  if (
+    isInBundledMode() ||
+    isEnvTruthy(process.env.DISABLE_INSTALLATION_CHECKS) ||
+    isEnvTruthy(process.env.CLAUDE_CODE_SOURCE_RECONSTRUCTION)
+  ) {
     return null;
   }
   const installationType = await getCurrentInstallationType();

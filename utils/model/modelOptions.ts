@@ -42,6 +42,40 @@ export type ModelOption = {
   descriptionForModel?: string
 }
 
+function isCodexProvider(): boolean {
+  return getAPIProvider() === 'codex'
+}
+
+function getCodexCodingOption(): ModelOption {
+  return {
+    value: getModelStrings().sonnet46,
+    label: 'GPT-5.3 Codex',
+    description: 'Best default for everyday coding tasks',
+    descriptionForModel:
+      'GPT-5.3 Codex - recommended default for coding and repository work',
+  }
+}
+
+function getCodexReasoningOption(): ModelOption {
+  return {
+    value: getModelStrings().opus46,
+    label: 'GPT-5.4',
+    description: 'Highest reasoning quality for harder problems',
+    descriptionForModel:
+      'GPT-5.4 - strongest general reasoning model for difficult tasks',
+  }
+}
+
+function getCodexMiniOption(): ModelOption {
+  return {
+    value: getModelStrings().haiku45,
+    label: 'GPT-5.4 Mini',
+    description: 'Fastest and lightest Codex model',
+    descriptionForModel:
+      'GPT-5.4 Mini - lower latency model for quick coding assistance',
+  }
+}
+
 export function getDefaultOptionForUser(fastMode = false): ModelOption {
   if (process.env.USER_TYPE === 'ant') {
     const currentModel = renderDefaultModelSetting(
@@ -52,6 +86,15 @@ export function getDefaultOptionForUser(fastMode = false): ModelOption {
       label: 'Default (recommended)',
       description: `Use the default model for Ants (currently ${currentModel})`,
       descriptionForModel: `Default model (currently ${currentModel})`,
+    }
+  }
+
+  if (isCodexProvider()) {
+    return {
+      value: null,
+      label: 'Default (recommended)',
+      description: `Use the default Codex model (currently ${renderDefaultModelSetting(getDefaultMainLoopModelSetting())})`,
+      descriptionForModel: `Default Codex model (currently ${renderDefaultModelSetting(getDefaultMainLoopModelSetting())})`,
     }
   }
 
@@ -284,6 +327,15 @@ function getModelOptionsBase(fastMode = false): ModelOption[] {
       getSonnet46Option(),
       getSonnet46_1MOption(),
       getHaiku45Option(),
+    ]
+  }
+
+  if (isCodexProvider()) {
+    return [
+      getDefaultOptionForUser(fastMode),
+      getCodexCodingOption(),
+      getCodexReasoningOption(),
+      getCodexMiniOption(),
     ]
   }
 

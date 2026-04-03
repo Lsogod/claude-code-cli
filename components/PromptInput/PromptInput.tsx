@@ -58,6 +58,7 @@ import type { AutoUpdaterResult } from '../../utils/autoUpdater.js';
 import { Cursor } from '../../utils/Cursor.js';
 import { getGlobalConfig, type PastedContent, saveGlobalConfig } from '../../utils/config.js';
 import { logForDebugging } from '../../utils/debug.js';
+import { logEnterDebug } from '../../utils/enterDebug.js';
 import { parseDirectMemberMessage, sendDirectMemberMessage } from '../../utils/directMemberMessage.js';
 import type { EffortLevel } from '../../utils/effort.js';
 import { env } from '../../utils/env.js';
@@ -761,7 +762,7 @@ function PromptInput({
     if (feature('ULTRAPLAN') && ultraplanTriggers.length) {
       addNotification({
         key: 'ultraplan-active',
-        text: 'This prompt will launch an ultraplan session in Claude Code on the web',
+        text: 'This prompt will launch an ultraplan session in One Claw on the web',
         priority: 'immediate',
         timeoutMs: 5000
       });
@@ -773,7 +774,7 @@ function PromptInput({
     if (isUltrareviewEnabled() && ultrareviewTriggers.length) {
       addNotification({
         key: 'ultrareview-active',
-        text: 'Run /ultrareview after Claude finishes to review these changes in the cloud',
+        text: 'Run /ultrareview after One finishes to review these changes in the cloud',
         priority: 'immediate',
         timeoutMs: 5000
       });
@@ -990,7 +991,19 @@ function PromptInput({
     // same "still visible?" derivation as footerItemSelected so a stale
     // selection (pill disappeared) doesn't swallow Enter.
     const state = store.getState();
+    logEnterDebug('PromptInput.onSubmit.start', {
+      inputParam,
+      isSubmittingSlashCommand,
+      footerSelection: state.footerSelection,
+      viewSelectionMode: state.viewSelectionMode,
+      suggestionCount: suggestionsState.suggestions.length,
+      helpOpen,
+    });
+
     if (state.footerSelection && footerItems.includes(state.footerSelection)) {
+      logEnterDebug('PromptInput.onSubmit.blocked.footerSelection', {
+        footerSelection: state.footerSelection,
+      });
       return;
     }
 
@@ -998,6 +1011,9 @@ function PromptInput({
     // BaseTextInput's useInput registers before that hook (child effects fire first),
     // so without this guard Enter would double-fire and auto-submit the suggestion.
     if (state.viewSelectionMode === 'selecting-agent') {
+      logEnterDebug('PromptInput.onSubmit.blocked.viewSelectionMode', {
+        viewSelectionMode: state.viewSelectionMode,
+      });
       return;
     }
 
@@ -1073,6 +1089,11 @@ function PromptInput({
     const hasDirectorySuggestions = suggestionsState.suggestions.length > 0 && suggestionsState.suggestions.every(s => s.description === 'directory');
     if (suggestionsState.suggestions.length > 0 && !isSubmittingSlashCommand && !hasDirectorySuggestions) {
       logForDebugging(`[onSubmit] early return: suggestions showing (count=${suggestionsState.suggestions.length})`);
+      logEnterDebug('PromptInput.onSubmit.blocked.suggestions', {
+        suggestionCount: suggestionsState.suggestions.length,
+        hasDirectorySuggestions,
+        isSubmittingSlashCommand,
+      });
       return; // Don't submit, user needs to clear suggestions first
     }
 
@@ -1097,6 +1118,10 @@ function PromptInput({
     }
 
     // Normal leader submission
+    logEnterDebug('PromptInput.onSubmit.forward', {
+      inputParam,
+      isSubmittingSlashCommand,
+    });
     await onSubmitProp(inputParam, {
       setCursorOffset,
       clearBuffer,
@@ -1956,6 +1981,9 @@ function PromptInput({
       }
     }
     if (key.return && helpOpen) {
+      logEnterDebug('PromptInput.useInput.return.helpOpen', {
+        input,
+      });
       setHelpOpen(false);
     }
   });

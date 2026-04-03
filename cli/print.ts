@@ -433,6 +433,72 @@ export function joinPromptValues(values: PromptValue[]): PromptValue {
   return values.flatMap(toBlocks)
 }
 
+type HeadlessTextStreamState = {
+  activeTextByIndex: Map<number, string>
+  hasStreamedText: boolean
+  endsWithNewline: boolean
+}
+
+function createHeadlessTextStreamState(): HeadlessTextStreamState {
+  return {
+    activeTextByIndex: new Map(),
+    hasStreamedText: false,
+    endsWithNewline: false,
+  }
+}
+
+function writeStreamedTextChunk(
+  state: HeadlessTextStreamState,
+  chunk: string,
+): void {
+  if (chunk.length === 0) {
+    return
+  }
+  writeToStdout(chunk)
+  state.hasStreamedText = true
+  state.endsWithNewline = chunk.endsWith('\n')
+}
+
+function handleHeadlessTextStreamEvent(
+  state: HeadlessTextStreamState,
+  message: SDKMessage,
+): void {
+  if (message.type !== 'stream_event') {
+    return
+  }
+
+  switch (message.event.type) {
+    case 'message_start':
+      state.activeTextByIndex.clear()
+      return
+    case 'content_block_start':
+      if (message.event.content_block.type === 'text') {
+        state.activeTextByIndex.set(message.event.index, '')
+      }
+      return
+    case 'content_block_delta':
+      if (message.event.delta.type !== 'text_delta') {
+        return
+      }
+      const previous = state.activeTextByIndex.get(message.event.index) ?? ''
+      const nextText = message.event.delta.text
+      const chunk = nextText.startsWith(previous)
+        ? nextText.slice(previous.length)
+        : nextText
+      state.activeTextByIndex.set(
+        message.event.index,
+        nextText.startsWith(previous) ? nextText : previous + nextText,
+      )
+      writeStreamedTextChunk(state, chunk)
+      return
+    case 'content_block_stop':
+      state.activeTextByIndex.delete(message.event.index)
+      return
+    default:
+      return
+  }
+}
+
 /**
  * Whether `next` can be batched into the same ask() call as `head`. Only
  * prompt-mode commands batch, and only when the workload tag matches (so the
@@ -851,6 +917,7 @@ export async function runHeadless(
   const needsFullArray = options.outputFormat === 'json' && options.verbose
   const messages: SDKMessage[] = []
   let lastMessage: SDKMessage | undefined
+  const textStreamState = createHeadlessTextStreamState()
   // Streamlined mode transforms messages when CLAUDE_CODE_STREAMLINED_OUTPUT=true and using stream-json
   // Build flag gates this out of external builds; env var is the runtime opt-in for ant builds
   const transformToStreamlined =
@@ -883,6 +950,11 @@ export async function runHeadless(
       }
     } else if (options.outputFormat === 'stream-json' && options.verbose) {
       await structuredIO.write(message)
+    } else if (
+      options.outputFormat === undefined ||
+      options.outputFormat === 'text'
+    ) {
+      handleHeadlessTextStreamEvent(textStreamState, message)
     }
     // Should not be getting control messages or stream events in non-stream mode.
     // Also filter out streamlined types since they're only produced by the transformer.
@@ -932,13 +1004,18 @@ export async function runHeadless(
       if (!lastMessage || lastMessage.type !== 'result') {
         throw new Error('No messages returned')
       }
+      if (textStreamState.hasStreamedText && !textStreamState.endsWithNewline) {
+        writeToStdout('\n')
+      }
       switch (lastMessage.subtype) {
         case 'success':
-          writeToStdout(
-            lastMessage.result.endsWith('\n')
-              ? lastMessage.result
-              : lastMessage.result + '\n',
-          )
+          if (!textStreamState.hasStreamedText) {
+            writeToStdout(
+              lastMessage.result.endsWith('\n')
+                ? lastMessage.result
+                : lastMessage.result + '\n',
+            )
+          }
           break
         case 'error_during_execution':
           writeToStdout(`Execution error`)
@@ -2135,6 +2212,7 @@ function runHeadlessStreaming(
             ? Date.now()
             : undefined
 
+          const cmd = command
           headlessProfilerCheckpoint('before_ask')
           startQueryProfile()
           // Per-iteration ALS context so bg agents spawned inside ask()
@@ -2142,7 +2220,6 @@ function runHeadlessStreaming(
           // stamps cmd.workload; the SDK --workload flag is options.workload.
           // const-capture: TS loses `while ((command = dequeue()))` narrowing
           // inside the closure.
-          const cmd = command
           await runWithWorkload(cmd.workload ?? options.workload, async () => {
             for await (const message of ask({
               commands: uniqBy(
@@ -2244,7 +2321,6 @@ function runHeadlessStreaming(
               }
             }
           }) // end runWithWorkload
-
           for (const uuid of batchUuids) {
             notifyCommandLifecycle(uuid, 'completed')
           }

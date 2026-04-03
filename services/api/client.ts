@@ -13,6 +13,8 @@ import {
 import { getUserAgent } from 'src/utils/http.js'
 import { getSmallFastModel } from 'src/utils/model/model.js'
 import {
+  getCodexAdapterApiKey,
+  getCodexAdapterBaseUrl,
   getAPIProvider,
   isFirstPartyAnthropicBaseUrl,
 } from 'src/utils/model/providers.js'
@@ -299,7 +301,12 @@ export async function getAnthropicClient({
 
   // Determine authentication method based on available tokens
   const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
-    apiKey: isClaudeAISubscriber() ? null : apiKey || getAnthropicApiKey(),
+    apiKey:
+      getAPIProvider() === 'codex'
+        ? apiKey || getCodexAdapterApiKey()
+        : isClaudeAISubscriber()
+          ? null
+          : apiKey || getAnthropicApiKey(),
     authToken: isClaudeAISubscriber()
       ? getClaudeAIOAuthTokens()?.accessToken
       : undefined,
@@ -307,6 +314,9 @@ export async function getAnthropicClient({
     ...(process.env.USER_TYPE === 'ant' &&
     isEnvTruthy(process.env.USE_STAGING_OAUTH)
       ? { baseURL: getOauthConfig().BASE_API_URL }
+      : {}),
+    ...(getAPIProvider() === 'codex'
+      ? { baseURL: getCodexAdapterBaseUrl() }
       : {}),
     ...ARGS,
     ...(isDebugToStdErr() && { logger: createStderrLogger() }),

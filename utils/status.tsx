@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import figures from 'figures';
 import * as React from 'react';
 import { color, Text } from '../ink.js';
+import { getCodexAuthSnapshot } from '../services/codex/auth.js';
 import type { MCPServerConnection } from '../services/mcp/types.js';
 import { getAccountInformation, isClaudeAISubscriber } from './auth.js';
 import { getLargeMemoryFiles, getMemoryFiles, MAX_MEMORY_CHARACTER_COUNT } from './claudemd.js';
@@ -11,7 +12,7 @@ import { getDisplayPath } from './file.js';
 import { formatNumber } from './format.js';
 import { getIdeClientName, type IDEExtensionInstallationStatus, isJetBrainsIde, toIDEDisplayName } from './ide.js';
 import { getClaudeAiUserDefaultModelDescription, modelDisplayString } from './model/model.js';
-import { getAPIProvider } from './model/providers.js';
+import { getAPIProvider, getAPIProviderDisplayName } from './model/providers.js';
 import { getMTLSConfig } from './mtls.js';
 import { checkInstall } from './nativeInstaller/index.js';
 import { getProxyUrl } from './proxy.js';
@@ -198,6 +199,57 @@ export async function buildInstallationHealthDiagnostics(): Promise<Diagnostic[]
   return items;
 }
 export function buildAccountProperties(): Property[] {
+  if (getAPIProvider() === 'codex') {
+    const snapshot = getCodexAuthSnapshot();
+    const properties: Property[] = [{
+      label: 'Login method',
+      value: snapshot.authMode ? `Codex (${snapshot.authMode})` : 'Codex'
+    }];
+    if (snapshot.plan) {
+      properties.push({
+        label: 'Plan',
+        value: snapshot.plan
+      });
+    }
+    if (snapshot.planSource) {
+      properties.push({
+        label: 'Plan source',
+        value: snapshot.planSource === 'live_usage' ? 'live usage API' : 'auth token'
+      });
+    }
+    if (snapshot.subscriptionLastChecked) {
+      properties.push({
+        label: 'Subscription last checked',
+        value: snapshot.subscriptionLastChecked
+      });
+    }
+    if (snapshot.usageFetchedAt) {
+      properties.push({
+        label: 'Usage fetched at',
+        value: snapshot.usageFetchedAt
+      });
+    }
+    if (snapshot.organizationTitle) {
+      properties.push({
+        label: 'Organization',
+        value: snapshot.organizationTitle
+      });
+    }
+    if (snapshot.email && !process.env.IS_DEMO) {
+      properties.push({
+        label: 'Email',
+        value: snapshot.email
+      });
+    }
+    if (snapshot.accountId) {
+      properties.push({
+        label: 'Account ID',
+        value: snapshot.accountId
+      });
+    }
+    return properties;
+  }
+
   const accountInfo = getAccountInformation();
   if (!accountInfo) {
     return [];
@@ -241,14 +293,9 @@ export function buildAPIProviderProperties(): Property[] {
   const apiProvider = getAPIProvider();
   const properties: Property[] = [];
   if (apiProvider !== 'firstParty') {
-    const providerLabel = {
-      bedrock: 'AWS Bedrock',
-      vertex: 'Google Vertex AI',
-      foundry: 'Microsoft Foundry'
-    }[apiProvider];
     properties.push({
       label: 'API provider',
-      value: providerLabel
+      value: getAPIProviderDisplayName(apiProvider)
     });
   }
   if (apiProvider === 'firstParty') {
@@ -320,6 +367,11 @@ export function buildAPIProviderProperties(): Property[] {
         value: 'Microsoft Foundry auth skipped'
       });
     }
+  } else if (apiProvider === 'codex') {
+    properties.push({
+      label: 'Adapter base URL',
+      value: process.env.CLAUDE_CODE_CODEX_ADAPTER_BASE_URL || process.env.CODEX_ADAPTER_BASE_URL || 'http://127.0.0.1:4317'
+    });
   }
   const proxyUrl = getProxyUrl();
   if (proxyUrl) {

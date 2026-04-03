@@ -26,6 +26,7 @@ import { EmergencyTip } from './EmergencyTip.js';
 import { VoiceModeNotice } from './VoiceModeNotice.js';
 import { Opus1mMergeNotice } from './Opus1mMergeNotice.js';
 import { feature } from 'bun:bundle';
+import { getCodexAuthSnapshot } from 'src/services/codex/auth.js';
 
 // Conditional require so ChannelsNotice.tsx tree-shakes when both flags are
 // false. A module-scope helper component inside a feature() ternary does NOT
@@ -43,11 +44,13 @@ import { useAppState } from '../../state/AppState.js';
 import { getEffortSuffix } from '../../utils/effort.js';
 import { useMainLoopModel } from '../../hooks/useMainLoopModel.js';
 import { renderModelSetting } from '../../utils/model/model.js';
+import { getAPIProvider } from '../../utils/model/providers.js';
 const LEFT_PANEL_MAX_WIDTH = 50;
 export function LogoV2() {
   const $ = _c(94);
   const activities = getRecentActivitySync();
-  const username = getGlobalConfig().oauthAccount?.displayName ?? "";
+  const codexSnapshot = getAPIProvider() === 'codex' ? getCodexAuthSnapshot() : null;
+  const username = getAPIProvider() === 'codex' ? codexSnapshot?.name ?? codexSnapshot?.email?.split('@')[0] ?? "" : getGlobalConfig().oauthAccount?.displayName ?? "";
   const {
     columns
   } = useTerminalSize();
@@ -162,7 +165,8 @@ export function LogoV2() {
     version,
     cwd,
     billingType,
-    agentName: agentNameFromSettings
+    agentName: agentNameFromSettings,
+    accountLabel
   } = getLogoDisplayData();
   const agentName = agent ?? agentNameFromSettings;
   const effortSuffix = getEffortSuffix(model, effortValue);
@@ -176,7 +180,7 @@ export function LogoV2() {
     t10 = $[14];
   }
   const modelDisplayName = t10;
-  if (!hasReleaseNotes && !showOnboarding && !isEnvTruthy(process.env.CLAUDE_CODE_FORCE_FULL_LOGO)) {
+  if (getAPIProvider() === 'codex' || !hasReleaseNotes && !showOnboarding && !isEnvTruthy(process.env.CLAUDE_CODE_FORCE_FULL_LOGO)) {
     let t11;
     let t12;
     let t13;
@@ -248,8 +252,8 @@ export function LogoV2() {
   }
   const layoutMode = getLayoutMode(columns);
   const userTheme = resolveThemeSetting(getGlobalConfig().theme);
-  const borderTitle = ` ${color("claude", userTheme)("Claude Code")} ${color("inactive", userTheme)(`v${version}`)} `;
-  const compactBorderTitle = color("claude", userTheme)(" Claude Code ");
+  const borderTitle = ` ${color("claude", userTheme)("One Claw")} ${color("inactive", userTheme)(`v${version}`)} `;
+  const compactBorderTitle = color("claude", userTheme)(" One Claw ");
   if (layoutMode === "compact") {
     let welcomeMessage = formatWelcomeMessage(username);
     if (stringWidth(welcomeMessage) > columns - 4) {
@@ -326,14 +330,15 @@ export function LogoV2() {
       t18 = $[42];
       t19 = $[43];
     }
-    return <><OffscreenFreeze><Box flexDirection="column" borderStyle="round" borderColor="claude" borderText={t11} paddingX={1} paddingY={1} alignItems="center" width={columns}><Text bold={true}>{welcomeMessage}</Text>{t12}{t13}<Text dimColor={true}>{billingType}</Text><Text dimColor={true}>{agentName ? `@${agentName} · ${truncatedCwd}` : truncatedCwd}</Text></Box></OffscreenFreeze>{t14}{t15}{t16}{t17}{t18}{t19}</>;
+    return <><OffscreenFreeze><Box flexDirection="column" borderStyle="round" borderColor="claude" borderText={t11} paddingX={1} paddingY={1} alignItems="center" width={columns}><Text bold={true}>{welcomeMessage}</Text>{t12}{t13}<Text dimColor={true}>{billingType}</Text>{accountLabel ? <Text dimColor={true}>{truncate(accountLabel, columns - 4)}</Text> : null}<Text dimColor={true}>{agentName ? `@${agentName} · ${truncatedCwd}` : truncatedCwd}</Text></Box></OffscreenFreeze>{t14}{t15}{t16}{t17}{t18}{t19}</>;
   }
   const welcomeMessage_0 = formatWelcomeMessage(username);
-  const modelLine = !process.env.IS_DEMO && config.oauthAccount?.organizationName ? `${modelDisplayName} · ${billingType} · ${config.oauthAccount.organizationName}` : `${modelDisplayName} · ${billingType}`;
+  const modelLine = !process.env.IS_DEMO && getAPIProvider() !== 'codex' && config.oauthAccount?.organizationName ? `${modelDisplayName} · ${billingType} · ${config.oauthAccount.organizationName}` : `${modelDisplayName} · ${billingType}`;
   const cwdAvailableWidth_0 = agentName ? LEFT_PANEL_MAX_WIDTH - 1 - stringWidth(agentName) - 3 : LEFT_PANEL_MAX_WIDTH;
   const truncatedCwd_0 = truncatePath(cwd, Math.max(cwdAvailableWidth_0, 10));
   const cwdLine = agentName ? `@${agentName} · ${truncatedCwd_0}` : truncatedCwd_0;
-  const optimalLeftWidth = calculateOptimalLeftWidth(welcomeMessage_0, cwdLine, modelLine);
+  const accountLine = accountLabel ? truncate(accountLabel, LEFT_PANEL_MAX_WIDTH) : null;
+  const optimalLeftWidth = calculateOptimalLeftWidth(welcomeMessage_0, accountLine ?? cwdLine, modelLine);
   const {
     leftWidth,
     rightWidth
@@ -392,10 +397,11 @@ export function LogoV2() {
     t21 = $[52];
   }
   let t22;
-  if ($[53] !== t20 || $[54] !== t21) {
-    t22 = <Box flexDirection="column" alignItems="center">{t20}{t21}</Box>;
+  if ($[53] !== accountLine || $[54] !== t20 || $[55] !== t21) {
+    t22 = <Box flexDirection="column" alignItems="center">{t20}{accountLine ? <Text dimColor={true}>{accountLine}</Text> : null}{t21}</Box>;
     $[53] = t20;
-    $[54] = t21;
+    $[54] = accountLine;
+    $[55] = t21;
     $[55] = t22;
   } else {
     t22 = $[55];

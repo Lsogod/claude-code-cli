@@ -1,5 +1,6 @@
 import { getDirectConnectServerUrl, getSessionId } from '../bootstrap/state.js'
 import { stringWidth } from '../ink/stringWidth.js'
+import { getCodexAuthSnapshot } from '../services/codex/auth.js'
 import type { LogOption } from '../types/logs.js'
 import { getSubscriptionName, isClaudeAISubscriber } from './auth.js'
 import { getCwd } from './cwd.js'
@@ -12,6 +13,7 @@ import {
 import { getStoredChangelogFromMemory, parseChangelog } from './releaseNotes.js'
 import { gt } from './semver.js'
 import { loadMessageLogs } from './sessionStorage.js'
+import { getAPIProvider } from './model/providers.js'
 import { getInitialSettings } from './settings/settings.js'
 
 // Layout constants
@@ -244,6 +246,7 @@ export function getLogoDisplayData(): {
   cwd: string
   billingType: string
   agentName: string | undefined
+  accountLabel: string | undefined
 } {
   const version = process.env.DEMO_VERSION ?? MACRO.VERSION
   const serverUrl = getDirectConnectServerUrl()
@@ -253,17 +256,52 @@ export function getLogoDisplayData(): {
   const cwd = serverUrl
     ? `${displayPath} in ${serverUrl.replace(/^https?:\/\//, '')}`
     : displayPath
-  const billingType = isClaudeAISubscriber()
-    ? getSubscriptionName()
-    : 'API Usage Billing'
+  const codexSnapshot = getAPIProvider() === 'codex' ? getCodexAuthSnapshot() : null
+  const billingType =
+    getAPIProvider() === 'codex'
+      ? getCodexBillingType(codexSnapshot)
+      : isClaudeAISubscriber()
+        ? getSubscriptionName()
+        : 'API Usage Billing'
   const agentName = getInitialSettings().agent
+  const accountLabel =
+    getAPIProvider() === 'codex'
+      ? codexSnapshot?.email ??
+        codexSnapshot?.name ??
+        codexSnapshot?.accountId ??
+        undefined
+      : getInitialSettings().agent
 
   return {
     version,
     cwd,
     billingType,
     agentName,
+    accountLabel,
   }
+}
+
+function getCodexBillingType(
+  snapshot: ReturnType<typeof getCodexAuthSnapshot> | null = getCodexAuthSnapshot(),
+): string {
+  const mode = snapshot.authMode ? snapshot.authMode.toUpperCase() : 'CODEX'
+
+  if (!snapshot.plan) {
+    return mode
+  }
+
+  // Codex's local auth token can lag behind the live account state. When the
+  // token only says "free" and the subscription metadata is empty, prefer the
+  // auth mode label over a misleading tier string on the splash screen.
+  if (
+    snapshot.plan.toLowerCase() === 'free' &&
+    !snapshot.subscriptionActiveStart &&
+    !snapshot.subscriptionActiveUntil
+  ) {
+    return mode
+  }
+
+  return `${mode} ${snapshot.plan.charAt(0).toUpperCase()}${snapshot.plan.slice(1)}`
 }
 
 /**

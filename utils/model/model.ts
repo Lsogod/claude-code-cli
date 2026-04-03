@@ -33,6 +33,42 @@ export type ModelShortName = string
 export type ModelName = string
 export type ModelSetting = ModelName | ModelAlias | null
 
+function isCodexModel(model: string): boolean {
+  return model.toLowerCase().replace(/\[1m\]/gi, '').startsWith('gpt-')
+}
+
+function renderCodexAlias(alias: ModelAlias): string {
+  switch (alias) {
+    case 'sonnet':
+      return 'GPT-5.3 Codex'
+    case 'opus':
+    case 'best':
+      return 'GPT-5.4'
+    case 'haiku':
+      return 'GPT-5.4 Mini'
+    case 'opusplan':
+      return 'GPT-5.4 in plan mode, else GPT-5.3 Codex'
+    default:
+      return capitalize(alias)
+  }
+}
+
+function getCodexPublicModelDisplayName(model: ModelName): string | null {
+  const normalized = model.toLowerCase().replace(/\[1m\]/gi, '')
+  switch (normalized) {
+    case 'gpt-5.4':
+      return 'GPT-5.4'
+    case 'gpt-5.4-mini':
+      return 'GPT-5.4 Mini'
+    case 'gpt-5.3-codex':
+      return 'GPT-5.3 Codex'
+    case 'gpt-5.2-codex':
+      return 'GPT-5.2 Codex'
+    default:
+      return null
+  }
+}
+
 export function getSmallFastModel(): ModelName {
   return process.env.ANTHROPIC_SMALL_FAST_MODEL || getDefaultHaikuModel()
 }
@@ -176,6 +212,10 @@ export function getRuntimeMainLoopModel(params: {
  * @returns The default model setting to use
  */
 export function getDefaultMainLoopModelSetting(): ModelName | ModelAlias {
+  if (getAPIProvider() === 'codex') {
+    return getDefaultSonnetModel()
+  }
+
   // Ants default to defaultModel from flag config, or Opus 1M if not configured
   if (process.env.USER_TYPE === 'ant') {
     return (
@@ -286,6 +326,9 @@ export function getCanonicalName(fullModelName: ModelName): ModelShortName {
 export function getClaudeAiUserDefaultModelDescription(
   fastMode = false,
 ): string {
+  if (getAPIProvider() === 'codex') {
+    return 'GPT-5.3 Codex · Default Codex model for everyday coding tasks'
+  }
   if (isMaxSubscriber() || isTeamPremiumSubscriber()) {
     if (isOpus1mMergeEnabled()) {
       return `Opus 4.6 with 1M context · Most capable for complex work${fastMode ? getOpus46PricingSuffix(true) : ''}`
@@ -299,6 +342,9 @@ export function renderDefaultModelSetting(
   setting: ModelName | ModelAlias,
 ): string {
   if (setting === 'opusplan') {
+    if (getAPIProvider() === 'codex') {
+      return 'GPT-5.4 in plan mode, else GPT-5.3 Codex'
+    }
     return 'Opus 4.6 in plan mode, else Sonnet 4.6'
   }
   return renderModelName(parseUserSpecifiedModel(setting))
@@ -333,9 +379,15 @@ export function isOpus1mMergeEnabled(): boolean {
 
 export function renderModelSetting(setting: ModelName | ModelAlias): string {
   if (setting === 'opusplan') {
+    if (getAPIProvider() === 'codex') {
+      return 'GPT-5 Plan Mode'
+    }
     return 'Opus Plan'
   }
   if (isModelAlias(setting)) {
+    if (getAPIProvider() === 'codex') {
+      return renderCodexAlias(setting)
+    }
     return capitalize(setting)
   }
   return renderModelName(setting)
@@ -347,6 +399,11 @@ export function renderModelSetting(setting: ModelName | ModelAlias): string {
  * if the model is not recognized as a public model.
  */
 export function getPublicModelDisplayName(model: ModelName): string | null {
+  const codexName = getCodexPublicModelDisplayName(model)
+  if (codexName) {
+    return codexName
+  }
+
   switch (model) {
     case getModelStrings().opus46:
       return 'Opus 4.6'
@@ -425,7 +482,13 @@ export function renderModelName(model: ModelName): string {
 export function getPublicModelName(model: ModelName): string {
   const publicName = getPublicModelDisplayName(model)
   if (publicName) {
+    if (getAPIProvider() === 'codex' || isCodexModel(model)) {
+      return `Codex ${publicName}`
+    }
     return `Claude ${publicName}`
+  }
+  if (getAPIProvider() === 'codex' || isCodexModel(model)) {
+    return `Codex (${model})`
   }
   return `Claude (${model})`
 }
@@ -560,7 +623,7 @@ export function modelDisplayString(model: ModelSetting): string {
     } else if (isClaudeAISubscriber()) {
       return `Default (${getClaudeAiUserDefaultModelDescription()})`
     }
-    return `Default (${getDefaultMainLoopModel()})`
+    return `Default (${renderDefaultModelSetting(getDefaultMainLoopModelSetting())})`
   }
   const resolvedModel = parseUserSpecifiedModel(model)
   return model === resolvedModel ? resolvedModel : `${model} (${resolvedModel})`
@@ -568,6 +631,11 @@ export function modelDisplayString(model: ModelSetting): string {
 
 // @[MODEL LAUNCH]: Add a marketing name mapping for the new model below.
 export function getMarketingNameForModel(modelId: string): string | undefined {
+  const codexName = getCodexPublicModelDisplayName(modelId)
+  if (codexName) {
+    return codexName
+  }
+
   if (getAPIProvider() === 'foundry') {
     // deployment ID is user-defined in Foundry, so it may have no relation to the actual model
     return undefined

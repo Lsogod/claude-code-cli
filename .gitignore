@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.DS_Store
+.claude/
+.sfdx/
+anthropic-ai-claude-code-2.1.89.tgz
+package-lock.json
+lobster.sh
+logo.sh
+*.log
+*.tmp
+*.swp

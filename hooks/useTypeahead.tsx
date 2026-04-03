@@ -22,6 +22,7 @@ import { generateProgressiveArgumentHint, parseArguments } from '../utils/argume
 import { getShellCompletions, type ShellCompletionType } from '../utils/bash/shellCompletion.js';
 import { formatLogMetadata } from '../utils/format.js';
 import { getSessionIdFromLog, searchSessionsByCustomTitle } from '../utils/sessionStorage.js';
+import { logEnterDebug } from '../utils/enterDebug.js';
 import { applyCommandSuggestion, findMidInputSlashCommand, generateCommandSuggestions, getBestCommandMatch, isCommandInput } from '../utils/suggestions/commandSuggestions.js';
 import { getDirectoryCompletions, getPathCompletions, isPathLikeToken } from '../utils/suggestions/directoryCompletion.js';
 import { getShellHistoryCompletion } from '../utils/suggestions/shellHistoryCompletion.js';
@@ -1135,6 +1136,13 @@ export function useTypeahead({
 
   // Handle enter key press - apply and execute suggestions
   const handleEnter = useCallback(() => {
+    logEnterDebug('useTypeahead.handleEnter', {
+      input,
+      suggestionType,
+      selectedSuggestion,
+      suggestionCount: suggestions.length,
+    });
+
     if (selectedSuggestion < 0 || suggestions.length === 0) return;
     const suggestion = suggestions[selectedSuggestion];
     if (suggestionType === 'command' && selectedSuggestion < suggestions.length) {
@@ -1356,6 +1364,15 @@ export function useTypeahead({
     // Shift+Enter and Meta+Enter insert newlines (handled by useTextInput),
     // so don't accept the suggestion for those.
     if (e.key === 'return' && !e.shift && !e.meta) {
+      logEnterDebug('useTypeahead.handleKeyDown.return', {
+        input,
+        suggestionType,
+        selectedSuggestion,
+        suggestionCount: suggestions.length,
+        ctrl: e.ctrl,
+        shift: e.shift,
+        meta: e.meta,
+      });
       e.preventDefault();
       handleEnter();
     }

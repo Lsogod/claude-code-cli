@@ -1,194 +1,245 @@
-# Claude Code CLI - Source Code Analysis
+# One Claw
 
-> Claude Code CLI 源代码学习与分析项目
+`One Claw` 是一个基于 Claude Code 源码快照重构并二次改造的终端 AI 编程助手。
 
-## 项目简介
+当前这套仓库已经改成了：
+- 前端命令名为 `one`
+- 默认后端为 `Codex CLI + 本地 Anthropic-compatible adapter`
+- 默认使用独立配置目录 `~/.one-claw`
+- 与本机官方 `claude` 配置隔离
 
-这是 Anthropic 官方 **Claude Code CLI** 工具的源代码，用于学习、研究和分析目的。Claude Code 是一个强大的 AI 编程助手命令行工具，支持多种编程任务自动化。
+## 当前状态
 
-## 技术栈
+- 入口命令：`one`
+- 当前 CLI 版本：`1.0 (One Claw)`
+- 当前默认 provider：`codex`
+- 当前默认认证方式：通过 `Codex CLI` 登录，再由本地 adapter 提供 Anthropic 风格接口
 
-| 类别 | 技术 |
-|------|------|
-| **语言** | TypeScript / TSX |
-| **运行时** | Bun |
-| **UI 框架** | Ink (React for CLI) |
-| **包管理** | Bun |
-| **CLI 框架** | Commander.js |
-| **终端样式** | Chalk |
+## 运行架构
+
+```mermaid
+flowchart LR
+  A["one"] --> B["One Claw CLI"]
+  B --> C["Local Anthropic-compatible Adapter"]
+  C --> D["codex app-server"]
+  D --> E["Codex / ChatGPT Login"]
+```
+
+`one` 的启动器会先做两件事：
+- 将配置目录固定到 `~/.one-claw`
+- 检查本地 adapter 是否已启动；如果没有，会自动拉起 `stack:codex`
+
+所以正常情况下你只需要执行一个命令：
+
+```bash
+one
+```
+
+## 环境要求
+
+- Bun `1.3+`
+- Codex CLI
+- 已登录的 Codex / ChatGPT 账户
+
+已验证版本：
+
+```bash
+bun --version
+codex --version
+one --version
+```
+
+## 安装
+
+### 1. 安装依赖
+
+```bash
+cd /Users/mac/Documents/claude-code-source
+bun install
+```
+
+### 2. 把 `one` 放进 PATH
+
+仓库已经提供了启动器：
+
+- [bin/one](/Users/mac/Documents/claude-code-source/bin/one)
+
+如果你本机还没把它链接到 PATH，可以执行：
+
+```bash
+mkdir -p ~/.local/bin
+ln -sf /Users/mac/Documents/claude-code-source/bin/one ~/.local/bin/one
+```
+
+然后确保 `~/.local/bin` 在 PATH 里。
+
+## 登录
+
+### 登录
+
+```bash
+one auth login
+```
+
+### 查看状态
+
+```bash
+one auth status
+```
+
+当前实现会优先从本地 Codex 登录态读取账户信息，并补充查询订阅状态。典型输出类似：
+
+```json
+{
+  "loggedIn": true,
+  "authMethod": "chatgpt",
+  "apiProvider": "codex",
+  "email": "your-account@example.com",
+  "subscriptionType": "plus"
+}
+```
+
+### 登出
+
+```bash
+one auth logout
+```
+
+## 使用
+
+### 交互模式
+
+```bash
+one
+```
+
+### 非交互模式
+
+```bash
+one -p "帮我总结这个仓库"
+```
+
+### 流式 JSON 输出
+
+```bash
+one -p "帮我总结这个仓库" --output-format stream-json
+```
+
+### 查看版本
+
+```bash
+one --version
+```
+
+## 手动启动后端
+
+虽然 `one` 默认会自动拉起后端栈，但调试时你也可以手动分开启动。
+
+### 启动 Codex 后端栈
+
+```bash
+cd /Users/mac/Documents/claude-code-source
+bun run stack:codex
+```
+
+### 单独启动 CLI
+
+```bash
+cd /Users/mac/Documents/claude-code-source
+bun run start:codex
+```
+
+### 单独启动 adapter
+
+```bash
+cd /Users/mac/Documents/claude-code-source
+bun run adapter:codex
+```
+
+## 常用脚本
+
+见 [package.json](/Users/mac/Documents/claude-code-source/package.json)：
+
+- `bun run start`
+- `bun run start:codex`
+- `bun run stack:codex`
+- `bun run adapter:codex`
+- `bun run build`
+- `bun run typecheck`
+
+## 配置隔离
+
+`one` 默认使用：
+
+```bash
+~/.one-claw
+```
+
+不会再与官方 `claude` 共用：
+
+```bash
+~/.claude
+```
+
+首次运行时，启动器会把旧的 Claude 配置迁移一份到 `~/.one-claw`，之后两边互不影响。
 
 ## 项目结构
 
-```
-src/
-├── commands/          # 斜杠命令实现 (/commit, /review 等)
-├── components/        # UI 组件 (基于 Ink React)
-│   └── design-system/ # 设计系统组件
-├── services/          # 核心服务
-│   ├── api/          # API 服务
-│   ├── mcp/          # MCP 协议实现
-│   ├── analytics/    # 分析服务
-│   └── settingsSync/ # 设置同步
-├── tools/             # 工具实现
-│   ├── BashTool/     # Shell 命令执行
-│   ├── FileReadTool/ # 文件读取
-│   ├── FileEditTool/ # 文件编辑
-│   ├── GrepTool/     # 代码搜索
-│   ├── GlobTool/     # 文件匹配
-│   ├── TaskTool/     # 任务代理
-│   └── ...           # 更多工具
-├── hooks/             # React Hooks
-├── constants/         # 常量定义
-├── ink/               # 终端 UI 框架
-├── utils/             # 工具函数
-├── schemas/           # JSON Schema 定义
-├── screens/           # 屏幕组件
-├── plugins/           # 插件系统
-├── keybindings/       # 快捷键绑定
-└── main.tsx          # 主入口文件
-```
+核心目录：
 
-## 核心功能
+- [bin](/Users/mac/Documents/claude-code-source/bin)
+- [runtime](/Users/mac/Documents/claude-code-source/runtime)
+- [entrypoints](/Users/mac/Documents/claude-code-source/entrypoints)
+- [cli](/Users/mac/Documents/claude-code-source/cli)
+- [components](/Users/mac/Documents/claude-code-source/components)
+- [commands](/Users/mac/Documents/claude-code-source/commands)
+- [services/codex](/Users/mac/Documents/claude-code-source/services/codex)
+- [packages/codex-anthropic-adapter](/Users/mac/Documents/claude-code-source/packages/codex-anthropic-adapter)
+- [tools](/Users/mac/Documents/claude-code-source/tools)
+- [utils](/Users/mac/Documents/claude-code-source/utils)
 
-### 命令列表
+## 当前改造点
 
-#### Git & 代码管理
-| 命令 | 描述 |
-|------|------|
-| `/commit` | 智能生成 Git 提交 |
-| `/review` | 代码审查 |
-| `/pr_comments` | PR 评论分析 |
-| `/diff` | 差异查看 |
-| `/branch` | 分支管理 |
+这份仓库相对原始源码快照，已经做了这些关键改造：
 
-#### 会话管理
-| 命令 | 描述 |
-|------|------|
-| `/resume` | 恢复历史会话 |
-| `/session` | 会话管理 |
-| `/clear` | 清除对话 |
-| `/compact` | 压缩上下文 |
-| `/rewind` | 回退操作 |
-| `/export` | 导出会话 |
+- 品牌与命令改为 `One Claw` / `one`
+- 认证与模型后端切到 `Codex CLI`
+- 增加本地 Anthropic-compatible adapter
+- 增加 `one` 单命令自动启动体验
+- 增加独立配置目录 `~/.one-claw`
+- 首页信息改为读取真实 Codex 账号和订阅状态
+- 支持交互模式、`-p` 非交互模式和流式输出
 
-#### 配置 & 设置
-| 命令 | 描述 |
-|------|------|
-| `/config` | 配置管理 |
-| `/init` | 初始化项目 |
-| `/model` | 切换模型 |
-| `/theme` | 主题设置 |
-| `/login` | 登录账户 |
-| `/logout` | 登出账户 |
+## 已知限制
 
-#### MCP & 插件
-| 命令 | 描述 |
-|------|------|
-| `/mcp` | MCP 服务器管理 |
-| `/plugin` | 插件管理 |
-| `/skills` | 技能系统 |
+- adapter 的部分会话映射仍是进程内状态，重启后端后不会继承之前的内存态
+- Claude.ai 专属控制面能力没有完整迁移到 Codex 模式
+- 本仓库仍保留较多历史目录结构，仓库名也尚未改成 `one-claw`
 
-#### 工具 & 诊断
-| 命令 | 描述 |
-|------|------|
-| `/doctor` | 系统诊断 |
-| `/cost` | 费用统计 |
-| `/usage` | 使用量统计 |
-| `/help` | 帮助信息 |
-| `/upgrade` | 升级版本 |
+## 开发与验证
 
-#### 模式切换
-| 命令 | 描述 |
-|------|------|
-| `/vim` | Vim 模式 |
-| `/plan` | 计划模式 |
-| `/fast` | 快速模式 |
-| `/permissions` | 权限管理 |
-| `/hooks` | 钩子配置 |
+### 构建
 
-## 架构亮点
-
-### 1. 工具系统 (Tools)
-每个工具都是独立模块，包含：
-- 输入验证 (JSON Schema)
-- 执行逻辑
-- 权限控制
-- 输出格式化
-
-### 2. 命令系统 (Commands)
-支持多种命令类型：
-- `prompt` - 提示词命令
-- `local` - 本地执行命令
-- `dialog` - 对话框命令
-
-### 3. MCP 协议
-完整的 Model Context Protocol 实现，支持：
-- Stdio 传输
-- SSE 传输
-- 资源管理
-- 工具调用
-
-### 4. 技能系统 (Skills)
-可扩展的技能框架：
-- 内置技能
-- 插件技能
-- 自定义技能目录
-
-### 5. 代理系统 (Agents)
-多代理协作支持：
-- Task 代理
-- 并行执行
-- 上下文隔离
-
-## 代码统计
-
-| 指标 | 数量 |
-|------|------|
-| TypeScript 文件 | ~1884 |
-| 命令数量 | ~50+ |
-| 工具数量 | ~30+ |
-| UI 组件 | ~100+ |
-
-## 关键文件
-
-| 文件 | 描述 |
-|------|------|
-| `main.tsx` | 应用主入口 |
-| `commands.ts` | 命令注册中心 |
-| `tools.ts` | 工具注册中心 |
-| `context.ts` | 上下文管理 |
-| `ink.tsx` | UI 渲染引擎 |
-
-## 依赖关系
-
-```
-main.tsx
-    ├── commands.ts ──► commands/
-    ├── tools.ts ──► tools/
-    ├── services/
-    │   ├── api/
-    │   ├── mcp/
-    │   └── analytics/
-    └── components/
-        └── design-system/
+```bash
+cd /Users/mac/Documents/claude-code-source
+bun run build
 ```
 
-## 学习价值
+### 类型检查
 
-1. **CLI 应用架构** - 大型命令行工具的设计模式
-2. **React 终端 UI** - Ink 框架的实战应用
-3. **MCP 协议** - AI 工具互联协议实现
-4. **插件系统** - 可扩展架构设计
-5. **代理系统** - 多代理协作模式
+```bash
+cd /Users/mac/Documents/claude-code-source
+bun run typecheck
+```
 
-## 免责声明
+### 最小验证
 
-本项目仅用于学习和研究目的。Claude Code 是 Anthropic, PBC. 的产品。本仓库不包含完整的构建配置和依赖，仅包含源代码用于学习分析。
+```bash
+one --version
+one auth status
+one -p "Reply with exactly OK and nothing else."
+```
 
-## 许可证
+## 说明
 
-源代码版权归 Anthropic, PBC. 所有。本项目仅用于教育目的。
-
----
-
-> 最后更新: 2026-03-31
+这个仓库来源于 Claude Code 相关源码快照的重构与整理版本，当前仓库内容已经不再是“原样镜像”，而是一个可运行、可二次开发的本地化改造版本。

@@ -5,6 +5,11 @@ import {
   performLogout,
 } from '../../commands/logout/logout.js'
 import {
+  getCodexLoginStatus,
+  loginWithCodexCli,
+  logoutFromCodexCli,
+} from '../../services/codex/auth.js'
+import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   logEvent,
 } from '../../services/analytics/index.js'
@@ -35,13 +40,115 @@ import { logForDebugging } from '../../utils/debug.js'
 import { isRunningOnHomespace } from '../../utils/envUtils.js'
 import { errorMessage } from '../../utils/errors.js'
 import { logError } from '../../utils/log.js'
-import { getAPIProvider } from '../../utils/model/providers.js'
+import {
+  getAPIProvider,
+  getAPIProviderDisplayName,
+  isCodexProvider,
+} from '../../utils/model/providers.js'
 import { getInitialSettings } from '../../utils/settings/settings.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
 import {
   buildAccountProperties,
   buildAPIProviderProperties,
 } from '../../utils/status.js'
+
+async function authLoginWithCodex(): Promise<void> {
+  try {
+    await loginWithCodexCli()
+    process.exit(0)
+  } catch (err) {
+    logError(err)
+    process.stderr.write(`Login failed: ${errorMessage(err)}\n`)
+    process.exit(1)
+  }
+}
+
+async function authStatusWithCodex(opts: {
+  json?: boolean
+  text?: boolean
+}): Promise<void> {
+  const status = await getCodexLoginStatus()
+
+  if (opts.text) {
+    process.stdout.write(`API provider: ${getAPIProviderDisplayName()}\n`)
+    process.stdout.write(
+      `Login method: ${status.authMode ? `Codex (${status.authMode})` : 'Codex'}\n`,
+    )
+    if (status.plan) {
+      process.stdout.write(`Plan: ${status.plan}\n`)
+    }
+    if (status.planSource) {
+      process.stdout.write(`Plan source: ${status.planSource}\n`)
+    }
+    if (status.subscriptionLastChecked) {
+      process.stdout.write(
+        `Subscription last checked: ${status.subscriptionLastChecked}\n`,
+      )
+    }
+    if (status.lastRefresh) {
+      process.stdout.write(`Token last refresh: ${status.lastRefresh}\n`)
+    }
+    if (status.organizationTitle) {
+      process.stdout.write(`Organization: ${status.organizationTitle}\n`)
+    }
+    if (status.accountId) {
+      process.stdout.write(`Account ID: ${status.accountId}\n`)
+    }
+    if (status.name) {
+      process.stdout.write(`Name: ${status.name}\n`)
+    }
+    if (status.email) {
+      process.stdout.write(`Email: ${status.email}\n`)
+    }
+    if (!status.loggedIn) {
+      process.stdout.write(
+        'Not logged in. Run one auth login to authenticate with Codex.\n',
+      )
+    }
+  } else {
+    process.stdout.write(
+      jsonStringify(
+        {
+          loggedIn: status.loggedIn,
+          authMethod: status.authMode ?? 'codex',
+          apiProvider: getAPIProvider(),
+          name: status.name,
+          email: status.email,
+          accountId: status.accountId,
+          subscriptionType: status.plan,
+          subscriptionSource:
+            status.planSource === 'live_usage'
+              ? 'chatgpt.com/backend-api/wham/usage'
+              : status.planSource === 'auth_json'
+                ? 'auth.json.jwt'
+                : null,
+          subscriptionLastChecked: status.subscriptionLastChecked,
+          subscriptionActiveStart: status.subscriptionActiveStart,
+          subscriptionActiveUntil: status.subscriptionActiveUntil,
+          lastRefresh: status.lastRefresh,
+          usageFetchedAt: status.usageFetchedAt,
+          organizationTitle: status.organizationTitle,
+          rawStatus: status.rawStatus,
+        },
+        null,
+        2,
+      ) + '\n',
+    )
+  }
+
+  process.exit(status.loggedIn ? 0 : 1)
+}
+
+async function authLogoutWithCodex(): Promise<void> {
+  try {
+    await logoutFromCodexCli()
+    process.exit(0)
+  } catch (err) {
+    logError(err)
+    process.stderr.write(`Logout failed: ${errorMessage(err)}\n`)
+    process.exit(1)
+  }
+}
 
 /**
  * Shared post-token-acquisition logic. Saves tokens, fetches profile/roles,
@@ -120,6 +227,11 @@ export async function authLogin({
   console?: boolean
   claudeai?: boolean
 }): Promise<void> {
+  if (isCodexProvider()) {
+    await authLoginWithCodex()
+    return
+  }
+
   if (useConsole && claudeai) {
     process.stderr.write(
       'Error: --console and --claudeai cannot be used together.\n',
@@ -233,6 +345,11 @@ export async function authStatus(opts: {
   json?: boolean
   text?: boolean
 }): Promise<void> {
+  if (isCodexProvider()) {
+    await authStatusWithCodex(opts)
+    return
+  }
+
   const { source: authTokenSource, hasToken } = getAuthTokenSource()
   const { source: apiKeySource } = getAnthropicApiKeyWithSource()
   const hasApiKeyEnvVar =
@@ -319,6 +436,11 @@ export async function authStatus(opts: {
 }
 
 export async function authLogout(): Promise<void> {
+  if (isCodexProvider()) {
+    await authLogoutWithCodex()
+    return
+  }
+
   try {
     await performLogout({ clearOnboarding: false })
   } catch {

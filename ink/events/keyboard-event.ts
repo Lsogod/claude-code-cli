@@ -31,7 +31,7 @@ export class KeyboardEvent extends TerminalEvent {
 
 function keyFromParsed(parsed: ParsedKey): string {
   const seq = parsed.sequence ?? ''
-  const name = parsed.name ?? ''
+  const name = parsed.name === 'enter' ? 'return' : parsed.name ?? ''
 
   // Ctrl combos: sequence is a control byte (\x03 for ctrl+c), name is the
   // letter. Browsers report e.key === 'c' with e.ctrlKey === true.

@@ -98,6 +98,10 @@ function isManagedOAuthContext(): boolean {
 /** Whether we are supporting direct 1P auth. */
 // this code is closely related to getAuthTokenSource
 export function isAnthropicAuthEnabled(): boolean {
+  if (getAPIProvider() === 'codex') {
+    return false
+  }
+
   // --bare: API-key-only, never OAuth.
   if (isBareMode()) return false
 
@@ -1584,6 +1588,10 @@ export function hasProfileScope(): boolean {
 }
 
 export function is1PApiCustomer(): boolean {
+  if (getAPIProvider() === 'codex') {
+    return false
+  }
+
   // 1P API customers are users who are NOT:
   // 1. Claude.ai subscribers (Max, Pro, Enterprise, Team)
   // 2. Vertex AI users
@@ -1730,10 +1738,9 @@ export function getSubscriptionName(): string {
 
 /** Check if using third-party services (Bedrock or Vertex or Foundry) */
 export function isUsing3PServices(): boolean {
-  return !!(
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
+  const provider = getAPIProvider()
+  return (
+    provider === 'bedrock' || provider === 'vertex' || provider === 'foundry'
   )
 }
 
