@@ -28,6 +28,51 @@ import type {
  *
  * Reference: openai_compat.rs build_chat_completion_request()
  */
+/**
+ * Trim the Claude Code system prompt for local models.
+ *
+ * The full system prompt is ~15-20k tokens with sections designed for
+ * Claude's capabilities (prompt caching, tool search, context management).
+ * Local models (8B-24B) get confused by the volume. This strips sections
+ * that are Anthropic-specific or too verbose, keeping core instructions.
+ *
+ * Gated behind OPENAI_TRIM_SYSTEM_PROMPT=1 (set automatically for local providers).
+ */
+function trimSystemPromptForLocalModel(system: string): string {
+  const shouldTrim = process.env.OPENAI_TRIM_SYSTEM_PROMPT === '1'
+  if (!shouldTrim) return system
+
+  // Sections to remove entirely (matched by heading or content)
+  const sectionsToRemove = [
+    // Anthropic-specific features
+    /# Executing actions with care[\s\S]*?(?=\n#\s|\n\nIMPORTANT:|\Z)/,
+    // Function result clearing (Anthropic context management)
+    /# Function result clearing[\s\S]*?(?=\n#\s|\Z)/,
+    // Summarize tool results (Anthropic context compression)
+    /When working with tool results, write down any important.*?cleared later\./,
+    // The system will automatically compress (Anthropic context window)
+    / - The system will automatically compress prior messages.*?context window\./,
+    // Prompt caching boundary marker
+    /={3,}.*BOUNDARY.*={3,}/,
+    // Attribution header (Anthropic-specific)
+    /x-client-request-id.*?correlation/,
+    // Numeric length anchors (Ant-only)
+    /Length limits: keep text between tool calls.*?detail\./,
+    // Token budget instructions
+    /When the user specifies a token target.*?continue you\./,
+  ]
+
+  let trimmed = system
+  for (const pattern of sectionsToRemove) {
+    trimmed = trimmed.replace(pattern, '')
+  }
+
+  // Collapse excessive whitespace from removed sections
+  trimmed = trimmed.replace(/\n{4,}/g, '\n\n\n')
+
+  return trimmed.trim()
+}
+
 export function buildChatCompletionRequest(
   model: string,
   maxTokens: number,
@@ -39,9 +84,15 @@ export function buildChatCompletionRequest(
 ): OpenAIChatCompletionRequest {
   const openaiMessages: OpenAIMessage[] = []
 
-  // System prompt becomes a system message
-  if (system) {
-    openaiMessages.push({ role: 'system', content: system })
+  // Trim system prompt for local models if enabled
+  const trimmedSystem = system ? trimSystemPromptForLocalModel(system) : system
+
+  // System prompt: use 'system' role if the model supports it,
+  // otherwise prepend to the first user message. Mistral and some other
+  // local models reject the system role entirely.
+  const useSystemRole = process.env.OPENAI_SYSTEM_ROLE !== '0'
+  if (trimmedSystem && useSystemRole) {
+    openaiMessages.push({ role: 'system', content: trimmedSystem })
   }
 
   // Translate each Anthropic message
@@ -49,10 +100,27 @@ export function buildChatCompletionRequest(
     openaiMessages.push(...translateMessage(msg as any))
   }
 
+  // If system role is disabled, prepend system content to first user message
+  if (trimmedSystem && !useSystemRole && openaiMessages.length > 0) {
+    const first = openaiMessages[0]
+    if (first.role === 'user' && typeof first.content === 'string') {
+      openaiMessages[0] = { role: 'user', content: trimmedSystem + '\n\n' + first.content }
+    } else {
+      // Insert as user message before other messages
+      openaiMessages.unshift({ role: 'user', content: trimmedSystem })
+    }
+  }
+
+  // Merge consecutive same-role messages. Many local models (Mistral, Llama)
+  // enforce strict role alternation (user/assistant/user/...) and reject
+  // requests with consecutive messages of the same role. The Anthropic format
+  // can produce multiple user messages in a row (e.g., text + tool_result).
+  const mergedMessages = mergeConsecutiveRoles(openaiMessages)
+
   const request: OpenAIChatCompletionRequest = {
     model,
     max_tokens: maxTokens,
-    messages: openaiMessages,
+    messages: mergedMessages,
     stream,
   }
 
@@ -60,11 +128,32 @@ export function buildChatCompletionRequest(
     request.stream_options = { include_usage: true }
   }
 
-  if (tools && tools.length > 0) {
-    request.tools = tools.map(translateToolDefinition)
+  // Only send tools if OPENAI_SEND_TOOLS=1 is set. Most local models
+  // (MLX, ollama, vLLM with small models) don't handle tool calling
+  // reliably and generate malformed tool_use responses that crash the
+  // query engine. Disable by default for safety.
+  const sendTools = process.env.OPENAI_SEND_TOOLS === '1'
+  if (sendTools && tools && tools.length > 0) {
+    let translatedTools = tools.map(translateToolDefinition)
+
+    // Limit tools sent to local models to avoid OOM.
+    // OPENAI_MAX_TOOLS caps the number of tool definitions. Core tools
+    // (Bash, Read, Edit, Write, Glob, Grep, Agent) are prioritised.
+    const maxTools = parseInt(process.env.OPENAI_MAX_TOOLS || '0', 10)
+    if (maxTools > 0 && translatedTools.length > maxTools) {
+      const coreToolNames = new Set([
+        'Bash', 'Read', 'Edit', 'Write', 'Glob', 'Grep', 'Agent',
+        'WebFetch', 'WebSearch', 'TaskCreate', 'TaskUpdate',
+      ])
+      const core = translatedTools.filter(t => coreToolNames.has(t.function.name))
+      const rest = translatedTools.filter(t => !coreToolNames.has(t.function.name))
+      translatedTools = [...core, ...rest].slice(0, maxTools)
+    }
+
+    request.tools = translatedTools
   }
 
-  if (toolChoice) {
+  if (sendTools && toolChoice) {
     request.tool_choice = translateToolChoice(toolChoice as any)
   }
 
@@ -534,4 +623,38 @@ function parseToolArguments(args: string): unknown {
   } catch {
     return { raw: args }
   }
+}
+
+/**
+ * Merge consecutive messages with the same role into single messages.
+ * Many local models (Mistral, Llama, etc.) enforce strict role alternation
+ * and return 404/400 if consecutive messages share a role.
+ *
+ * Tool-role messages are left as-is (they need tool_call_id).
+ */
+function mergeConsecutiveRoles(messages: OpenAIMessage[]): OpenAIMessage[] {
+  if (messages.length === 0) return messages
+  const merged: OpenAIMessage[] = [messages[0]]
+
+  for (let i = 1; i < messages.length; i++) {
+    const prev = merged[merged.length - 1]
+    const curr = messages[i]
+
+    // Only merge user+user or system+system (not tool, not assistant with tool_calls)
+    if (
+      curr.role === prev.role &&
+      (curr.role === 'user' || curr.role === 'system') &&
+      typeof prev.content === 'string' &&
+      typeof curr.content === 'string'
+    ) {
+      ;(merged[merged.length - 1] as any) = {
+        role: prev.role,
+        content: prev.content + '\n' + curr.content,
+      }
+    } else {
+      merged.push(curr)
+    }
+  }
+
+  return merged
 }

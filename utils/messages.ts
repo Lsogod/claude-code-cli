@@ -687,6 +687,9 @@ export function extractTag(html: string, tagName: string): string | null {
 }
 
 export function isNotEmptyMessage(message: Message): boolean {
+  if (!message || !('type' in message)) {
+    return false
+  }
   if (
     message.type === 'progress' ||
     message.type === 'attachment' ||
@@ -818,6 +821,10 @@ export function normalizeMessages(messages: Message[]): NormalizedMessage[] {
           } as NormalizedMessage
         })
       }
+      default:
+        // Skip messages with unrecognized types (e.g. tombstone, tool_use_summary)
+        // to prevent undefined elements in the flatMap result
+        return []
     }
   })
 }

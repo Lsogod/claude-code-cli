@@ -2281,7 +2281,7 @@ async function* queryModel(
             if (stopReason === 'model_context_window_exceeded') {
               logEvent('tengu_context_window_exceeded', {
                 max_tokens: maxOutputTokens,
-                output_tokens: usage.output_tokens,
+                output_tokens: usage?.output_tokens ?? 0,
               })
               // Reuse the max_output_tokens recovery path — from the model's
               // perspective, both mean "response was cut off, continue from
@@ -2385,8 +2385,8 @@ async function* queryModel(
       if (feature('PROMPT_CACHE_BREAK_DETECTION')) {
         void checkResponseForCacheBreak(
           options.querySource,
-          usage.cache_read_input_tokens,
-          usage.cache_creation_input_tokens,
+          usage?.cache_read_input_tokens ?? 0,
+          usage?.cache_creation_input_tokens ?? 0,
           messages,
           options.agentId,
           streamRequestId,

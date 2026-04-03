@@ -166,6 +166,7 @@ async function sendWithRetry(
 
       // Non-retryable error
       const body = await response.text()
+      process.stderr.write(`[openai] HTTP ${response.status} from ${chatCompletionsEndpoint(config.baseUrl)}: ${body.slice(0, 200)}\n`)
       throw new Error(
         `OpenAI API error ${response.status}: ${parseErrorMessage(body)}`,
       )
@@ -208,6 +209,8 @@ async function sendRawRequest(
   signal?: AbortSignal,
 ): Promise<Response> {
   const url = chatCompletionsEndpoint(config.baseUrl)
+  const roles = request.messages.map(m => m.role)
+  process.stderr.write(`[openai] POST ${url} roles=[${roles.join(',')}] msgs=${request.messages.length}\n`)
   return fetch(url, {
     method: 'POST',
     headers: {
