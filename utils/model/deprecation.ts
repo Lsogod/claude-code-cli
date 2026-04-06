@@ -38,6 +38,9 @@ const DEPRECATED_MODELS: Record<string, DeprecationEntry> = {
       bedrock: 'January 15, 2026',
       vertex: 'January 5, 2026',
       foundry: 'January 5, 2026',
+      openai: null,
+      ollama: null,
+      codex: 'January 5, 2026',
     },
   },
   'claude-3-7-sonnet': {
@@ -47,6 +50,9 @@ const DEPRECATED_MODELS: Record<string, DeprecationEntry> = {
       bedrock: 'April 28, 2026',
       vertex: 'May 11, 2026',
       foundry: 'February 19, 2026',
+      openai: null,
+      ollama: null,
+      codex: 'February 19, 2026',
     },
   },
   'claude-3-5-haiku': {
@@ -56,6 +62,9 @@ const DEPRECATED_MODELS: Record<string, DeprecationEntry> = {
       bedrock: null,
       vertex: null,
       foundry: null,
+      openai: null,
+      ollama: null,
+      codex: 'February 19, 2026',
     },
   },
 }

@@ -1,22 +1,147 @@
 import type { AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS } from '../../services/analytics/index.js'
 import { isEnvTruthy } from '../envUtils.js'
+import { getSettings_DEPRECATED } from '../settings/settings.js'
 
-export type APIProvider = 'firstParty' | 'bedrock' | 'vertex' | 'foundry' | 'openai'
+export type APIProvider =
+  | 'firstParty'
+  | 'bedrock'
+  | 'vertex'
+  | 'foundry'
+  | 'openai'
+  | 'ollama'
+  | 'codex'
+
+export type ProviderSetting =
+  | 'anthropic'
+  | 'bedrock'
+  | 'vertex'
+  | 'foundry'
+  | 'openai'
+  | 'ollama'
+  | 'codex'
+
+function normalizeProviderSetting(
+  value: string | undefined,
+): APIProvider | undefined {
+  if (!value) {
+    return undefined
+  }
+
+  switch (value.trim().toLowerCase()) {
+    case 'anthropic':
+    case 'firstparty':
+    case 'first-party':
+    case 'first_party':
+      return 'firstParty'
+    case 'bedrock':
+      return 'bedrock'
+    case 'vertex':
+      return 'vertex'
+    case 'foundry':
+      return 'foundry'
+    case 'openai':
+      return 'openai'
+    case 'ollama':
+      return 'ollama'
+    case 'codex':
+      return 'codex'
+    default:
+      return undefined
+  }
+}
+
+function getConfiguredProviderOverride(): APIProvider | undefined {
+  const envProvider = normalizeProviderSetting(process.env.CLAUDE_CODE_PROVIDER)
+  if (envProvider) {
+    return envProvider
+  }
+
+  try {
+    const settings = getSettings_DEPRECATED()
+    return normalizeProviderSetting(settings?.provider)
+  } catch {
+    return undefined
+  }
+}
 
 export function getAPIProvider(): APIProvider {
   return isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENAI) || process.env.OPENAI_BASE_URL
     ? 'openai'
-    : isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK)
-      ? 'bedrock'
-      : isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX)
-        ? 'vertex'
-        : isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
-          ? 'foundry'
-          : 'firstParty'
+    : isEnvTruthy(process.env.CLAUDE_CODE_USE_OLLAMA) || process.env.OLLAMA_BASE_URL
+      ? 'ollama'
+      : isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK)
+        ? 'bedrock'
+        : isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX)
+          ? 'vertex'
+          : isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
+            ? 'foundry'
+            : getConfiguredProviderOverride() ?? 'firstParty'
 }
 
 export function getAPIProviderForStatsig(): AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS {
   return getAPIProvider() as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
+}
+
+export function isOpenAIProvider(): boolean {
+  return getAPIProvider() === 'openai'
+}
+
+export function isOllamaProvider(): boolean {
+  return getAPIProvider() === 'ollama'
+}
+
+export function getOllamaBaseUrl(): string {
+  return (
+    process.env.OLLAMA_BASE_URL ||
+    'http://127.0.0.1:11434'
+  )
+}
+
+export function getOllamaModel(): string {
+  return (
+    process.env.OLLAMA_MODEL ||
+    'ministral-3-8b-instruct-4bit:latest'
+  )
+}
+
+export function isCodexProvider(): boolean {
+  return getAPIProvider() === 'codex'
+}
+
+export function shouldUseClaudeControlPlane(): boolean {
+  return getAPIProvider() === 'firstParty'
+}
+
+export function getCodexAdapterBaseUrl(): string {
+  return (
+    process.env.CLAUDE_CODE_CODEX_ADAPTER_BASE_URL ||
+    process.env.CODEX_ADAPTER_BASE_URL ||
+    'http://127.0.0.1:4317'
+  )
+}
+
+export function getCodexAdapterApiKey(): string {
+  return (
+    process.env.CLAUDE_CODE_CODEX_ADAPTER_API_KEY ||
+    process.env.CODEX_ADAPTER_API_KEY ||
+    'codex-local'
+  )
+}
+
+export function getAPIProviderDisplayName(
+  provider: APIProvider = getAPIProvider(),
+): string {
+  return (
+    {
+      firstParty: 'Anthropic',
+      bedrock: 'AWS Bedrock',
+      vertex: 'Google Vertex AI',
+      foundry: 'Microsoft Foundry',
+      openai: 'OpenAI Compatible',
+      ollama: 'Ollama',
+      codex: 'OpenAI Codex',
+    } satisfies Record<APIProvider, string>
+  )[provider]
 }
 
 /**

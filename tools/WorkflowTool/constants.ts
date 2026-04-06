@@ -1,2 +1,1 @@
-// Stub: internal WorkflowTool constants
-export const TOOL_NAME = 'workflow'
+export const WORKFLOW_TOOL_NAME = 'Workflow'

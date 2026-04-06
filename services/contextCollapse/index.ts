@@ -1,51 +1,75 @@
-/**
- * Context collapse — intelligently collapses tool results to reduce context usage.
- *
- * Translated from:
- *   - Python: claw-code/src/transcript.py (TranscriptStore.compact)
- *   - Python: claw-code/src/query_engine.py (compact_messages_if_needed)
- */
+import type { Message } from '../../types/message.js'
 
-interface ContextCollapseStats {
-  collapsedCount: number
-  savedTokens: number
-  enabled: boolean
+type ContextCollapseHealth = {
+  totalSpawns: number
+  totalErrors: number
+  totalEmptySpawns: number
+  emptySpawnWarningEmitted: boolean
+  lastError?: string
 }
 
-let enabled = false
-const stats: ContextCollapseStats = {
-  collapsedCount: 0,
-  savedTokens: 0,
-  enabled: false,
+type ContextCollapseStats = {
+  collapsedSpans: number
+  stagedSpans: number
+  collapsedMessages: number
+  health: ContextCollapseHealth
 }
 
-type Subscriber = () => void
-const subscribers: Subscriber[] = []
-
-export function initContextCollapse(): void {
-  enabled = true
-  stats.enabled = true
+const EMPTY_STATS: ContextCollapseStats = {
+  collapsedSpans: 0,
+  stagedSpans: 0,
+  collapsedMessages: 0,
+  health: {
+    totalSpawns: 0,
+    totalErrors: 0,
+    totalEmptySpawns: 0,
+    emptySpawnWarningEmitted: false,
+    lastError: undefined,
+  },
 }
 
-export function resetContextCollapse(): void {
-  enabled = false
-  stats.collapsedCount = 0
-  stats.savedTokens = 0
-  stats.enabled = false
+const listeners = new Set<() => void>()
+
+export function subscribe(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
 }
 
-export function isContextCollapseEnabled(): boolean {
-  return enabled
+function emit(): void {
+  for (const listener of listeners) {
+    listener()
+  }
 }
 
 export function getStats(): ContextCollapseStats {
-  return { ...stats }
+  return EMPTY_STATS
 }
 
-export function subscribe(fn: Subscriber): () => void {
-  subscribers.push(fn)
-  return () => {
-    const idx = subscribers.indexOf(fn)
-    if (idx >= 0) subscribers.splice(idx, 1)
+export function isContextCollapseEnabled(): boolean {
+  return false
+}
+
+export async function applyCollapsesIfNeeded(
+  messages: Message[],
+): Promise<{ messages: Message[] }> {
+  return { messages }
+}
+
+export function recoverFromOverflow(
+  messages: Message[],
+): { messages: Message[]; committed: number } {
+  return {
+    messages,
+    committed: 0,
   }
+}
+
+export function isWithheldPromptTooLong(): boolean {
+  return false
+}
+
+export function resetContextCollapse(): void {
+  emit()
 }

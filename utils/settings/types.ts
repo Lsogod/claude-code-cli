@@ -372,10 +372,46 @@ export const SettingsSchema = lazySchema(() =>
       permissions: PermissionsSchema()
         .optional()
         .describe('Tool usage permissions configuration'),
+      provider: z
+        .enum(['anthropic', 'bedrock', 'vertex', 'foundry', 'codex'])
+        .optional()
+        .describe(
+          'Select the backend provider used by Claude Code. ' +
+            'When set to "codex", Claude Code routes requests to a local Anthropic-compatible Codex adapter.',
+        ),
       model: z
         .string()
         .optional()
         .describe('Override the default model used by Claude Code'),
+      codex: z
+        .object({
+          adapterBaseUrl: z
+            .string()
+            .optional()
+            .describe(
+              'Base URL for the local Anthropic-compatible Codex adapter, e.g. "http://127.0.0.1:4317".',
+            ),
+          appServerUrl: z
+            .string()
+            .optional()
+            .describe(
+              'Transport URL for codex app-server, typically "ws://127.0.0.1:4318".',
+            ),
+          modelOverrides: z
+            .record(z.string(), z.string())
+            .optional()
+            .describe(
+              'Map Claude-facing model identifiers to Codex model identifiers inside the adapter.',
+            ),
+          disableClaudeControlPlane: z
+            .boolean()
+            .optional()
+            .describe(
+              'Disable Claude.ai-specific control-plane features while running against Codex.',
+            ),
+        })
+        .optional()
+        .describe('Codex provider configuration'),
       // Enterprise allowlist of models
       availableModels: z
         .array(z.string())

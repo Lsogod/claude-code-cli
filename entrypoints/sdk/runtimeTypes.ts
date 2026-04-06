@@ -1,66 +1,79 @@
-// Stub: SDK runtime types (non-serializable callbacks and interfaces)
-// These are generated/internal types not included in the public source dump.
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 
-import type { z } from 'zod/v4'
+export type AnyZodRawShape = Record<string, unknown>
 
-export type AnyZodRawShape = Record<string, z.ZodType<any>>
-export type InferShape<T extends AnyZodRawShape> = { [K in keyof T]: z.infer<T[K]> }
+export type InferShape<_Schema> = Record<string, unknown>
 
-export type Options = Record<string, any>
-export type Query = Record<string, any>
-export type InternalOptions = Options & { _internal?: boolean }
-export type InternalQuery = Query & { _internal?: boolean }
+export type EffortLevel = 'low' | 'medium' | 'high' | 'max'
 
-export type SDKSession = {
-  id: string
-  send: (message: any) => Promise<any>
-  close: () => Promise<void>
-}
+export type Options = Record<string, unknown>
 
-export type SDKSessionOptions = {
-  model?: string
-  maxTokens?: number
-}
+export type InternalOptions = Options & Record<string, unknown>
 
-export type SessionMessage = {
-  role: string
-  content: any
-}
+export interface Query extends AsyncGenerator<Record<string, unknown>, void> {}
+
+export interface InternalQuery
+  extends AsyncGenerator<Record<string, unknown>, void> {}
 
 export type SessionMutationOptions = {
-  sessionId?: string
+  dir?: string
+  [key: string]: unknown
 }
 
-export type ListSessionsOptions = {
-  limit?: number
-}
-
-export type GetSessionInfoOptions = {
-  sessionId: string
-}
-
-export type GetSessionMessagesOptions = {
-  sessionId: string
-  limit?: number
-}
-
-export type ForkSessionOptions = {
-  sessionId: string
-  messageIndex?: number
+export type ForkSessionOptions = SessionMutationOptions & {
+  [key: string]: unknown
 }
 
 export type ForkSessionResult = {
-  sessionId: string
+  sessionId?: string
+  [key: string]: unknown
+}
+
+export type GetSessionInfoOptions = {
+  dir?: string
+}
+
+export type GetSessionMessagesOptions = {
+  dir?: string
+  limit?: number
+  offset?: number
+  includeSystemMessages?: boolean
+}
+
+export type ListSessionsOptions = {
+  dir?: string
+  limit?: number
+  offset?: number
+}
+
+export type SessionMessage = Record<string, unknown>
+
+export type SDKSessionOptions = {
+  model: string
+  [key: string]: unknown
+}
+
+export interface SDKSession {
+  id?: string
+  [key: string]: unknown
 }
 
 export type McpSdkServerConfigWithInstance = {
-  name: string
-  config: any
-  instance?: any
+  type?: string
+  name?: string
+  instance?: unknown
+  [key: string]: unknown
 }
 
-export type SdkMcpToolDefinition = {
+export type SdkMcpToolDefinition<Schema extends AnyZodRawShape = AnyZodRawShape> = {
   name: string
-  description?: string
-  inputSchema?: any
+  description: string
+  inputSchema: Schema
+  annotations?: ToolAnnotations
+  searchHint?: string
+  alwaysLoad?: boolean
+  handler: (
+    args: InferShape<Schema>,
+    extra: unknown,
+  ) => Promise<CallToolResult>
 }

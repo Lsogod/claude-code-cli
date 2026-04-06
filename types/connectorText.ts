@@ -1,6 +1,21 @@
-// Stub: connector text types (internal feature)
-export type ConnectorText = {
-  type: string
-  content: string
+export type ConnectorTextBlock = {
+  type: 'connector_text'
+  text: string
+  connector_name?: string
 }
-export type ConnectorTextBlock = ConnectorText
+
+export type ConnectorTextDelta = {
+  type?: 'connector_text_delta'
+  text?: string
+}
+
+export function isConnectorTextBlock(
+  value: unknown,
+): value is ConnectorTextBlock {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'type' in value &&
+    (value as { type?: unknown }).type === 'connector_text'
+  )
+}
